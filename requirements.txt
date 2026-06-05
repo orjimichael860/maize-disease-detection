@@ -1,7 +1,5 @@
-streamlit>=1.35.0
-# tensorflow-cpu is smaller (~200MB vs ~1GB) — fine for Cloud Run inference
-tensorflow-cpu>=2.15.0
-numpy>=1.24.0
-Pillow>=10.0.0
-matplotlib>=3.7.0
-scikit-learn>=1.3.0
+streamlit==1.35.0
+tensorflow-cpu==2.15.0
+numpy==1.26.4
+Pillow==10.3.0
+matplotlib==3.8.4
