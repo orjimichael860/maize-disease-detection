@@ -318,10 +318,21 @@ with tab1:
     with col_cam:
         st.markdown(
             '<div class="input-card"><h4>📷 Take a Photo</h4>'
-            '<small>Works on phones and laptop webcams</small></div>',
+            '<small>📱 Mobile: tap the flip icon (🔄) to switch to back camera</small></div>',
             unsafe_allow_html=True,
         )
-        camera_photo = st.camera_input("Camera", label_visibility="collapsed")
+        # Camera is hidden until the user explicitly clicks "Open Camera".
+        # This prevents the browser from requesting camera permission on page load.
+        if "show_camera" not in st.session_state:
+            st.session_state.show_camera = False
+
+        if not st.session_state.show_camera:
+            if st.button("📷 Open Camera", use_container_width=True):
+                st.session_state.show_camera = True
+                st.rerun()
+            camera_photo = None
+        else:
+            camera_photo = st.camera_input("Camera", label_visibility="collapsed")
 
     with col_up:
         st.markdown(
