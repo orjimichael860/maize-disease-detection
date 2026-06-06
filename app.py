@@ -1,46 +1,21 @@
 """
-Maize Disease Detection System — Streamlit Web Application
-============================================================
-TechCrush AI/ML Bootcamp · Cohort 5 · Capstone Project
-
-Architecture : EfficientNetB0 (Transfer Learning)
-Framework    : Streamlit
-Input        : Maize leaf photograph (JPG / JPEG / PNG)
-Output       : Disease class, confidence score, treatment and prevention advice
-
-Classes detected:
-    0 — Blight         (Exserohilum turcicum / Bipolaris maydis)
-    1 — Common Rust    (Puccinia sorghi)
-    2 — Gray Leaf Spot (Cercospora zeae-maydis)
-    3 — Healthy
-
-Note: Class indices follow the alphabetical ordering produced by Keras
-      ImageDataGenerator.flow_from_directory().
-
-AI Assistance: Portions of this code were developed with the assistance of
-               Claude (Anthropic). All AI-generated sections have been reviewed,
-               understood, and adapted specifically for this project.
-               — TechCrush Cohort 5 Capstone Guidelines §4.1
+Maize Leaf Disease Classifier — Production Version
+TechCrush AI/ML Bootcamp — Cohort 5
+EfficientNetB0 | Black + Orange neon design
+# Code assisted by AI tools (Claude), adapted and customised for this project.
 """
 
-# ── Standard library ──────────────────────────────────────────────────────────
-import io
-import os
-
-# ── Third-party libraries ─────────────────────────────────────────────────────
+import streamlit as st
 import numpy as np
 from PIL import Image
-import tensorflow as tf                                    # noqa: F401 (required by Keras backend)
+import os
+import tensorflow as tf
 import keras
 from keras.applications import EfficientNetB0
 from keras.applications.efficientnet import preprocess_input
 from keras import layers, models
+import io
 
-# ── Streamlit (UI framework) ──────────────────────────────────────────────────
-import streamlit as st
-
-# ── Page configuration ────────────────────────────────────────────────────────
-# Must be the first Streamlit call in the script.
 st.set_page_config(
     page_title="Maize Disease Detection System",
     page_icon="🌽",
@@ -48,38 +23,14 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-
-# ── Global constants ──────────────────────────────────────────────────────────
-
-# Class labels must match the alphabetical ordering produced by Keras's
-# ImageDataGenerator.flow_from_directory() during training.
-#   Index 0 → Blight | 1 → Common_rust | 2 → Gray_leaf_spot | 3 → Healthy
-CLASS_NAMES = ["Blight", "Common_rust", "Gray_leaf_spot", "Healthy"]
-
-# Human-readable versions of CLASS_NAMES used for display only.
+# CLASS ORDER must match training — alphabetical from flow_from_directory
+# Blight=0, Common_rust=1, Gray_leaf_spot=2, Healthy=3
+CLASS_NAMES   = ["Blight", "Common_rust", "Gray_leaf_spot", "Healthy"]
 DISPLAY_NAMES = ["Blight", "Common Rust", "Gray Leaf Spot", "Healthy"]
+IMG_SIZE      = (224, 224)
+WEIGHTS_FILE  = "model_weights.weights.h5"
+CONF_WARN     = 60
 
-# Model input resolution (pixels × pixels). Must match training configuration.
-IMG_SIZE = (224, 224)
-
-# Path to the saved EfficientNetB0 weight file (relative to app.py).
-WEIGHTS_FILE = "model_weights.weights.h5"
-
-# Minimum confidence (%) below which a low-confidence warning is shown.
-CONF_WARN = 60
-
-# ── Disease knowledge base ────────────────────────────────────────────────────
-# Each key is the DISPLAY_NAMES version of the class label.
-# Keys stored per disease:
-#   emoji         — icon for UI rendering
-#   color         — primary accent hex colour
-#   glow          — CSS box-shadow string for the result card
-#   severity      — plain-English severity label
-#   severity_color — hex colour used to tint the severity pill
-#   description   — one-paragraph clinical description of the disease
-#   cause         — causal organism(s)
-#   treatment     — bullet-point treatment recommendations
-#   prevention    — bullet-point prevention strategies
 DISEASE_INFO = {
     "Blight": {
         "emoji": "🟤", "color": "#ff3d00", "glow": "0 0 18px #ff3d0088",
@@ -115,19 +66,13 @@ DISEASE_INFO = {
     },
 }
 
-# Maps the raw CLASS_NAMES labels (underscore format, as stored in the model)
-# to the DISEASE_INFO dictionary keys (display format with spaces).
 CLASS_TO_INFO = {
-    "Blight":         "Blight",
-    "Common_rust":    "Common Rust",
+    "Blight": "Blight",
+    "Common_rust": "Common Rust",
     "Gray_leaf_spot": "Gray Leaf Spot",
-    "Healthy":        "Healthy",
+    "Healthy": "Healthy",
 }
 
-# ── Custom CSS ────────────────────────────────────────────────────────────────
-# Injected via st.markdown(unsafe_allow_html=True) to override Streamlit's
-# default styles and apply the project's black-and-orange neon theme.
-# Assisted by Claude (Anthropic); adapted and customised for this project.
 CSS = """
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap');
@@ -168,83 +113,35 @@ CSS = """
 </style>
 """
 
-# Inject custom styles into the Streamlit page.
 st.markdown(CSS, unsafe_allow_html=True)
 
 
-# ── Model utilities ───────────────────────────────────────────────────────────
-
 def build_model():
-    """
-    Reconstruct the EfficientNetB0-based classification architecture.
-
-    Architecture (matches training setup):
-        Input (224×224×3)
-        → EfficientNetB0 base (frozen, no top, ImageNet-style features)
-        → GlobalAveragePooling2D
-        → Dropout(0.5)
-        → Dense(128, ReLU)
-        → Dropout(0.3)
-        → Dense(4, Softmax)   ← 4 disease classes
-
-    The base is set weights=None because we load saved weights separately.
-    training=False keeps BatchNorm layers in inference mode at all times.
-
-    Returns:
-        keras.Model: Uncompiled model ready to accept weights.
-    """
     base = EfficientNetB0(include_top=False, weights=None, input_shape=(224, 224, 3))
-    base.trainable = False                      # Freeze base — weights loaded from file
-
+    base.trainable = False
     inp = keras.Input(shape=(224, 224, 3))
-    x   = base(inp, training=False)             # training=False → BatchNorm in inference mode
+    x   = base(inp, training=False)
     x   = layers.GlobalAveragePooling2D()(x)
-    x   = layers.Dropout(0.5)(x)               # Dropout(0.5) after pooling (matches training)
+    x   = layers.Dropout(0.5)(x)
     x   = layers.Dense(128, activation="relu")(x)
-    x   = layers.Dropout(0.3)(x)               # Dropout(0.3) before final layer
-    out = layers.Dense(4, activation="softmax")(x)  # 4 output nodes for 4 disease classes
+    x   = layers.Dropout(0.3)(x)
+    out = layers.Dense(4, activation="softmax")(x)
     return models.Model(inp, out)
 
 
 @st.cache_resource(show_spinner=False)
 def load_model():
-    """
-    Build the model and load pre-trained weights from disk.
-
-    Uses st.cache_resource so the model is loaded only once per session,
-    avoiding repeated disk reads and model reconstruction on every page render.
-
-    Returns:
-        keras.Model | None: Loaded model, or None if the weights file is missing.
-    """
-    model = build_model()
+    m = build_model()
     if not os.path.exists(WEIGHTS_FILE):
-        # Weights file not found — return None so the UI can display a helpful message.
         return None
-    model.load_weights(WEIGHTS_FILE)
-    return model
+    m.load_weights(WEIGHTS_FILE)
+    return m
 
 
 def preprocess_image(pil_image):
-    """
-    Prepare a PIL image for inference.
-
-    Steps:
-        1. Convert to RGB (handles RGBA / grayscale inputs).
-        2. Resize to the model's expected input dimensions (224×224).
-        3. Cast pixel values to float32.
-        4. Apply EfficientNet's built-in preprocessing (scales to [-1, 1]).
-        5. Add a batch dimension → shape (1, 224, 224, 3).
-
-    Args:
-        pil_image (PIL.Image.Image): Raw image opened from upload or camera.
-
-    Returns:
-        np.ndarray: Preprocessed array of shape (1, 224, 224, 3).
-    """
     img = pil_image.convert("RGB").resize(IMG_SIZE)
     arr = np.array(img, dtype=np.float32)
-    return preprocess_input(np.expand_dims(arr, 0))  # preprocess_input scales to [-1, 1]
+    return preprocess_input(np.expand_dims(arr, 0))
 
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
@@ -351,7 +248,7 @@ with tab1:
         col_img, col_res = st.columns([1, 1], gap="large")
 
         with col_img:
-            st.image(pil_image, caption="Input image", use_container_width=True)
+            st.image(pil_image, caption="Input image", use_column_width=True)
             st.markdown(
                 f"<small style='color:#333'>Size: {pil_image.width}×{pil_image.height} px</small>",
                 unsafe_allow_html=True,
@@ -367,14 +264,13 @@ with tab1:
                     f"Place `{WEIGHTS_FILE}` in the same folder as `app.py` and restart."
                 )
             else:
-                # ── Inference ─────────────────────────────────────────────────
-                img_arr  = preprocess_image(pil_image)                # → (1, 224, 224, 3)
-                preds    = model.predict(img_arr, verbose=0)[0]       # → (4,) softmax outputs
-                pred_idx = int(np.argmax(preds))                      # Index of highest probability
-                raw_class  = CLASS_NAMES[pred_idx]                    # e.g. "Gray_leaf_spot"
-                pred_class = CLASS_TO_INFO[raw_class]                 # e.g. "Gray Leaf Spot"
-                conf       = float(preds[pred_idx]) * 100             # Confidence as percentage
-                info       = DISEASE_INFO[pred_class]                 # Retrieve disease knowledge
+                img_arr    = preprocess_image(pil_image)
+                preds      = model.predict(img_arr, verbose=0)[0]
+                pred_idx   = int(np.argmax(preds))
+                raw_class  = CLASS_NAMES[pred_idx]
+                pred_class = CLASS_TO_INFO[raw_class]
+                conf       = float(preds[pred_idx]) * 100
+                info       = DISEASE_INFO[pred_class]
 
                 st.markdown(
                     f'<div class="result-card" style="box-shadow:{info["glow"]};'
@@ -410,16 +306,13 @@ with tab1:
                     c2.progress(pct / 100, text=f"{pct:.1f}%")
 
                 st.markdown("---")
-                # Render the heading and its content block together inside a single
-                # HTML element to eliminate the extra paragraph margin that Streamlit
-                # adds between separate st.markdown() calls.
+                st.markdown("**Recommended Treatment**")
                 st.markdown(
-                    f'<p style="font-weight:700;margin:0 0 0.4rem 0;">Recommended Treatment</p>'
                     f'<div class="info-block">{info["treatment"]}</div>',
                     unsafe_allow_html=True,
                 )
+                st.markdown("**Prevention**")
                 st.markdown(
-                    f'<p style="font-weight:700;margin:0.8rem 0 0.4rem 0;">Prevention</p>'
                     f'<div class="info-block">{info["prevention"]}</div>',
                     unsafe_allow_html=True,
                 )
@@ -450,25 +343,24 @@ with tab2:
         with st.expander(f"{inf['emoji']}  {cls}  —  {inf['severity']} severity"):
             d1, d2 = st.columns(2)
             with d1:
-                # Heading and block merged to remove Streamlit's default paragraph gap
+                st.markdown("**Description**")
                 st.markdown(
-                    '<p style="font-weight:700;margin:0 0 0.4rem 0;">Description</p>'
                     f'<div class="info-block">{inf["description"]}</div>',
                     unsafe_allow_html=True,
                 )
+                st.markdown("**Cause**")
                 st.markdown(
-                    '<p style="font-weight:700;margin:0.8rem 0 0.4rem 0;">Cause</p>'
                     f'<div class="info-block">{inf["cause"]}</div>',
                     unsafe_allow_html=True,
                 )
             with d2:
+                st.markdown("**Treatment**")
                 st.markdown(
-                    '<p style="font-weight:700;margin:0 0 0.4rem 0;">Treatment</p>'
                     f'<div class="info-block">{inf["treatment"]}</div>',
                     unsafe_allow_html=True,
                 )
+                st.markdown("**Prevention**")
                 st.markdown(
-                    '<p style="font-weight:700;margin:0.8rem 0 0.4rem 0;">Prevention</p>'
                     f'<div class="info-block">{inf["prevention"]}</div>',
                     unsafe_allow_html=True,
                 )
