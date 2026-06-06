@@ -9,12 +9,10 @@ import streamlit as st
 import numpy as np
 from PIL import Image
 import os
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
 import tensorflow as tf
-import tf_keras as keras
-from tf_keras.applications import EfficientNetB0
-from tf_keras.applications.efficientnet import preprocess_input
-from tf_keras import layers, models
+from tensorflow.keras.applications import EfficientNetB0
+from tensorflow.keras.applications.efficientnet import preprocess_input
+from tensorflow.keras import layers, models
 import io
 
 st.set_page_config(
@@ -120,7 +118,7 @@ st.markdown(CSS, unsafe_allow_html=True)
 def build_model():
     base = EfficientNetB0(include_top=False, weights=None, input_shape=(224, 224, 3))
     base.trainable = False
-    inp = keras.Input(shape=(224, 224, 3))
+    inp = tf.keras.Input(shape=(224, 224, 3))
     x   = base(inp, training=False)
     x   = layers.GlobalAveragePooling2D()(x)
     x   = layers.Dropout(0.5)(x)
