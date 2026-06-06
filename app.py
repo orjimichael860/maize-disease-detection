@@ -248,7 +248,7 @@ with tab1:
         col_img, col_res = st.columns([1, 1], gap="large")
 
         with col_img:
-            st.image(pil_image, caption="Input image", use_container_width=True)
+            st.image(pil_image, caption="Input image", use_column_width=True)
             st.markdown(
                 f"<small style='color:#333'>Size: {pil_image.width}×{pil_image.height} px</small>",
                 unsafe_allow_html=True,
