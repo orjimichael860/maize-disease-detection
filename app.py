@@ -1,7 +1,7 @@
 """
 Maize Disease Detection System — Streamlit Web Application
 ============================================================
-TechCrush AI/ML Bootcamp · Cohort 5 · Capstone Project
+TechCrush AI/ML Bootcamp · Cohort 6 · Capstone Project
 
 Architecture : EfficientNetB0 (Transfer Learning)
 Framework    : Streamlit
@@ -20,7 +20,7 @@ Note: Class indices follow the alphabetical ordering produced by Keras
 AI Assistance: Portions of this code were developed with the assistance of
                Claude (Anthropic). All AI-generated sections have been reviewed,
                understood, and adapted specifically for this project.
-               — TechCrush Cohort 5 Capstone Guidelines §4.1
+               — TechCrush Cohort 6 Capstone Guidelines §4.1
 """
 
 # ── Standard library ──────────────────────────────────────────────────────────
@@ -247,7 +247,7 @@ with st.sidebar:
     st.markdown(
         "<small style='color:#666'>This system uses EfficientNetB0 deep learning to "
         "classify maize leaf diseases from a single photograph. "
-        "Built for TechCrush AI/ML Bootcamp Cohort 5.</small>",
+        "Built for TechCrush AI/ML Bootcamp Cohort 6.</small>",
         unsafe_allow_html=True,
     )
 
@@ -275,7 +275,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown(
-        "<small style='color:#2a2a2a'>TechCrush Cohort 5 · Capstone Project · "
+        "<small style='color:#2a2a2a'>TechCrush Cohort 6 · Capstone Project · "
         "Built for academic ML research.</small>",
         unsafe_allow_html=True,
     )
@@ -475,49 +475,36 @@ with tab2:
 
 # ── TAB 3: PERFORMANCE ────────────────────────────────────────────────────────
 with tab3:
-    st.markdown("## Model Performance Results")
+    st.markdown("## Model Performance")
     st.markdown("---")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("### Model Comparison")
-        st.table({
-            "Model":    ["Baseline DNN", "EfficientNetB0 (This Project)"],
-            "Accuracy": ["82.82%",        "91.69%"],
-            "Loss":     ["0.4143",        "0.2565"],
-            "Macro F1": ["—",             "89.46%"],
-        })
-    with c2:
-        st.markdown("### Per-Class Results")
-        st.table({
-            "Class":     ["Blight", "Common Rust", "Gray Leaf Spot", "Healthy"],
-            "Precision": ["0.80",   "0.99",        "0.87",          "0.99"],
-            "Recall":    ["0.96",   "0.92",        "0.67",          "1.00"],
-            "F1 Score":  ["0.87",   "0.95",        "0.76",          "1.00"],
-        })
+    # Summary accuracy metrics — clean and concise for end users
+    c1, c2, c3, c4 = st.columns(4)
+    for col, val, lbl in [
+        (c1, "91.69%", "Test Accuracy"),
+        (c2, "89.46%", "Macro F1 Score"),
+        (c3, "82.82%", "Baseline Accuracy"),
+        (c4, "4",      "Disease Classes"),
+    ]:
+        col.markdown(
+            f'<div class="stat-box"><div class="stat-val">{val}</div>'
+            f'<div class="stat-lbl">{lbl}</div></div>',
+            unsafe_allow_html=True,
+        )
 
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
----
-### Training Strategy
+Our EfficientNetB0 model was trained on the **PlantVillage Maize Disease Dataset** (Kaggle) 
+using Transfer Learning, achieving **91.69% test accuracy** — a significant improvement over 
+the 82.82% baseline DNN.
 
-**Phase 1 — Head Training**
-EfficientNetB0 base weights were frozen. Only the classification head (GlobalAveragePooling → Dense 128 → Dense 4) was trained for up to 25 epochs with a learning rate of 3×10⁻⁴. Early stopping prevented overfitting.
-
-**Phase 2 — Fine-Tuning**
-The top 100 layers of EfficientNetB0 were unfrozen and trained at a much lower learning rate of 5×10⁻⁶ for up to 10 epochs. This allowed the model to adapt pre-learned ImageNet features to maize disease patterns.
-
-**Techniques used:**
-- Data augmentation (rotation, zoom, flip, brightness)
-- Class balancing with computed class weights
-- Early stopping and ReduceLROnPlateau callbacks
-
-### Dataset
-PlantVillage Maize Disease Dataset (Kaggle) · 4 classes · 70 / 20 / 10 split · 224×224 px input
+**Architecture:** EfficientNetB0 · Input: 224×224 px · 4 Classes  
+**Dataset:** PlantVillage (Kaggle) · 70 / 20 / 10 train/val/test split
     """)
 
 
 st.markdown(
     '<div class="footer">🌽 Maize Disease Detection System &nbsp;|&nbsp; '
-    '<span>TechCrush AI/ML Bootcamp Cohort 5</span> &nbsp;|&nbsp; '
+    '<span>TechCrush AI/ML Bootcamp Cohort 6</span> &nbsp;|&nbsp; '
     'EfficientNetB0 · Streamlit · Transfer Learning</div>',
     unsafe_allow_html=True,
 )
